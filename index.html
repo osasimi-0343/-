@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アークナイツ キャラクター検索</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-sub: #a0a0a0;
+            --accent: #00d2ff; /* アークナイツっぽいシアン */
+            --accent-hover: #00aadd;
+            --border: #333;
+            --active-bg: #00d2ff;
+            --active-text: #000;
+        }
+
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            border-left: 5px solid var(--accent);
+            padding-left: 15px;
+            margin-bottom: 30px;
+        }
+
+        /* 検索フィルタエリア */
+        .filter-container {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        .filter-group {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .filter-group:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .filter-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: block;
+            color: var(--accent);
+            font-size: 0.95rem;
+        }
+
+        .btn-filter {
+            background-color: transparent;
+            border: 1px solid #555;
+            color: var(--text-sub);
+            padding: 6px 12px;
+            margin: 0 6px 6px 0;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .btn-filter:hover {
+            border-color: var(--accent);
+            color: var(--text-main);
+        }
+
+        /* 選択状態 */
+        .btn-filter.active {
+            background-color: var(--active-bg);
+            color: var(--active-text);
+            border-color: var(--active-bg);
+            font-weight: bold;
+        }
+
+        /* ステータスバー */
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px 0;
+        }
+
+        .btn-reset {
+            background-color: #d32f2f;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 2px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-reset:hover {
+            background-color: #b71c1c;
+        }
+
+        /* 結果グリッド */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        /* キャラクターカード */
+        .char-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 15px;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .char-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            border-color: var(--accent);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #444;
+            padding-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .char-name {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+
+        .char-sub {
+            font-size: 0.8rem;
+            color: var(--text-sub);
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 2px;
+        }
+
+        .char-tags {
+            margin-bottom: 12px;
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .tag-badge {
+            display: inline-block;
+            border: 1px solid #555;
+            padding: 1px 5px;
+            margin-right: 3px;
+            margin-bottom: 3px;
+            border-radius: 2px;
+        }
+
+        .char-stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px 10px;
+            font-size: 0.85rem;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+        }
+        .stat-label { color: #777; }
+        .stat-val { color: #ccc; }
+        .bonus { color: var(--accent); font-size: 0.8em; margin-left: 2px; }
+
+        .loading-msg {
+            text-align: center;
+            font-size: 1.2rem;
+            color: var(--text-sub);
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>アークナイツ キャラクターデータベース</h1>
+
+    <div id="loading" class="loading-msg">データベースを読み込み中...</div>
+
+    <div id="main-content" style="display:none;">
+        <!-- フィルタ操作エリア -->
+        <div class="filter-container">
+            
+            <div class="filter-group">
+                <span class="filter-label">職業</span>
+                <div id="btns-profession"></div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">職分</span>
+                <div id="btns-branch"></div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">ブロック数</span>
+                <div id="btns-block"></div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">入手方法</span>
+                <div id="btns-obtain"></div>
+            </div>
+
+            <div class="filter-group">
+                <span class="filter-label">募集タグ (AND検索: すべて含むキャラを表示)</span>
+                <div id="btns-tags"></div>
+            </div>
+
+        </div>
+
+        <!-- 件数表示とリセット -->
+        <div class="status-bar">
+            <span id="result-count" style="font-weight:bold; font-size:1.1rem;">Loading...</span>
+            <button class="btn-reset" onclick="resetAll()">条件をリセット</button>
+        </div>
+
+        <!-- 結果一覧 -->
+        <div id="results" class="results-grid"></div>
+    </div>
+
+    <script>
+        // グローバル変数
+        let allCharacters = [];
+        let structuredData = {};
+        
+        // フィルタ状態管理
+        let filters = {
+            profession: [],
+            branch: [],
+            block_count: [],
+            obtain_method: [],
+            tags: []
+        };
+
+        // 初期化処理
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // 2つのJSONを並列で取得
+                const [charsRes, structRes] = await Promise.all([
+                    fetch('arknights_characters.json'),
+                    fetch('arknights_structured_values.json')
+                ]);
+
+                if (!charsRes.ok || !structRes.ok) {
+                    throw new Error("ファイルの読み込みに失敗しました");
+                }
+
+                allCharacters = await charsRes.json();
+                structuredData = await structRes.json();
+
+                // UI生成
+                initButtons();
+                
+                // 初回描画
+                updateResults();
+
+                // ローディング非表示、メイン表示
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+
+            } catch (error) {
+                document.getElementById('loading').textContent = "エラー: JSONファイルの読み込みに失敗しました。ローカルサーバー経由で開いているか確認してください。";
+                console.error(error);
+            }
+        });
+
+        // ボタン生成関数
+        function initButtons() {
+            // 1. 職業
+            const profContainer = document.getElementById('btns-profession');
+            // 辞書のキーを取得してソート
+            const professions = Object.keys(structuredData.profession_branches || {}).sort();
+            professions.forEach(prof => {
+                createButton(profContainer, 'profession', prof);
+            });
+
+            // 2. 職分 (全職分をフラットなリストにする)
+            const branchContainer = document.getElementById('btns-branch');
+            let allBranches = [];
+            if (structuredData.profession_branches) {
+                Object.values(structuredData.profession_branches).forEach(list => {
+                    allBranches = allBranches.concat(list);
+                });
+            }
+            // 重複排除とソート
+            allBranches = [...new Set(allBranches)].sort();
+            allBranches.forEach(br => {
+                createButton(branchContainer, 'branch', br);
+            });
+
+            // 3. ブロック数
+            const blockContainer = document.getElementById('btns-block');
+            (structuredData.block_counts || []).forEach(val => {
+                createButton(blockContainer, 'block_count', val);
+            });
+
+            // 4. 入手方法
+            const obtainContainer = document.getElementById('btns-obtain');
+            (structuredData.obtain_methods || []).forEach(val => {
+                createButton(obtainContainer, 'obtain_method', val);
+            });
+
+            // 5. 募集タグ
+            const tagsContainer = document.getElementById('btns-tags');
+            (structuredData.tags || []).forEach(val => {
+                createButton(tagsContainer, 'tags', val);
+            });
+        }
+
+        // 個別のボタンを作成するヘルパー関数
+        function createButton(container, type, value) {
+            const btn = document.createElement('button');
+            btn.className = 'btn-filter';
+            btn.textContent = value;
+            btn.dataset.type = type;
+            btn.dataset.value = value;
+            
+            btn.addEventListener('click', function() {
+                toggleFilter(type, value, this);
+            });
+            
+            container.appendChild(btn);
+        }
+
+        // フィルタのON/OFF切り替え
+        function toggleFilter(type, value, btnElement) {
+            const index = filters[type].indexOf(value);
+            
+            if (index === -1) {
+                // 追加
+                filters[type].push(value);
+                btnElement.classList.add('active');
+            } else {
+                // 削除
+                filters[type].splice(index, 1);
+                btnElement.classList.remove('active');
+            }
+
+            // 即座に検索実行
+            updateResults();
+        }
+
+        // 検索ロジックと描画
+        function updateResults() {
+            const resultsContainer = document.getElementById('results');
+            const countLabel = document.getElementById('result-count');
+            
+            // フィルタリング実行
+            const filteredChars = allCharacters.filter(char => {
+                // 1. 職業 (OR)
+                if (filters.profession.length > 0 && !filters.profession.includes(char.profession)) return false;
+                
+                // 2. 職分 (OR)
+                if (filters.branch.length > 0 && !filters.branch.includes(char.branch)) return false;
+                
+                // 3. ブロック数 (OR)
+                if (filters.block_count.length > 0 && !filters.block_count.includes(char.block_count)) return false;
+                
+                // 4. 入手方法 (OR)
+                if (filters.obtain_method.length > 0 && !filters.obtain_method.includes(char.obtain_method)) return false;
+                
+                // 5. 募集タグ (AND) - ここだけは「選択したタグを全て持っているか」を判定
+                if (filters.tags.length > 0) {
+                    if (!char.tags || !Array.isArray(char.tags)) return false;
+                    const hasAllTags = filters.tags.every(t => char.tags.includes(t));
+                    if (!hasAllTags) return false;
+                }
+
+                return true;
+            });
+
+            // 件数更新
+            countLabel.textContent = `検索結果: ${filteredChars.length} 件`;
+
+            // HTML生成
+            let html = '';
+            if (filteredChars.length === 0) {
+                resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#777;">該当するキャラクターはいません</div>';
+                return;
+            }
+
+            filteredChars.forEach(char => {
+                // タグのHTML化
+                const tagsHtml = (char.tags || []).map(t => `<span class="tag-badge">${t}</span>`).join('');
+                
+                // ステータス表示の整形 (nullチェック含む)
+                const hp = char.hp ? char.hp.base : '-';
+                
+                // 攻撃力 (+値がある場合)
+                let atk = '-';
+                if (char.attack) {
+                    atk = char.attack.base;
+                    if (char.attack.trust_bonus) {
+                        atk += `<span class="bonus">${char.attack.trust_bonus}</span>`;
+                    }
+                }
+
+                // 防御力
+                let def = '-';
+                if (char.defense) {
+                    def = char.defense.base;
+                    if (char.defense.trust_bonus) {
+                        def += `<span class="bonus">${char.defense.trust_bonus}</span>`;
+                    }
+                }
+                
+                // コスト、ブロック、再配置
+                const cost = char.cost || '-';
+                const block = char.block_count || '-';
+                const redeploy = (char.redeploy_time || '-').split(' ')[0]; // "35s (普通)" -> "35s"
+
+                html += `
+                <a href="${char.url}" target="_blank" class="char-card">
+                    <div class="card-header">
+                        <span class="char-name">${char.name}</span>
+                        <span class="char-sub">${char.profession}</span>
+                    </div>
+                    
+                    <div class="char-tags">
+                        <div>職分: ${char.branch}</div>
+                        <div style="margin-top:4px;">${tagsHtml}</div>
+                    </div>
+
+                    <div class="char-stats-grid">
+                        <div class="stat-item"><span class="stat-label">HP</span><span class="stat-val">${hp}</span></div>
+                        <div class="stat-item"><span class="stat-label">攻撃</span><span class="stat-val">${atk}</span></div>
+                        <div class="stat-item"><span class="stat-label">防御</span><span class="stat-val">${def}</span></div>
+                        <div class="stat-item"><span class="stat-label">術耐</span><span class="stat-val">${char.resistance || '0'}</span></div>
+                        <div class="stat-item"><span class="stat-label">コスト</span><span class="stat-val">${cost}</span></div>
+                        <div class="stat-item"><span class="stat-label">ブロック</span><span class="stat-val">${block}</span></div>
+                        <div class="stat-item"><span class="stat-label">再配置</span><span class="stat-val">${redeploy}</span></div>
+                    </div>
+                </a>
+                `;
+            });
+
+            resultsContainer.innerHTML = html;
+        }
+
+        // リセット機能
+        function resetAll() {
+            // フィルタ状態クリア
+            filters = {
+                profession: [],
+                branch: [],
+                block_count: [],
+                obtain_method: [],
+                tags: []
+            };
+
+            // ボタンの見た目クリア
+            document.querySelectorAll('.btn-filter.active').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 再描画
+            updateResults();
+        }
+    </script>
+</body>
+</html>
