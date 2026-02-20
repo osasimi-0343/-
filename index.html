@@ -3,15 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>アークナイツ キャラクター検索</title>
+    <title>アークナイツ キャラクター検索 (高機能版)</title>
     <style>
         :root {
             --bg-color: #121212;
             --card-bg: #1e1e1e;
             --text-main: #e0e0e0;
             --text-sub: #a0a0a0;
-            --accent: #00d2ff; /* アークナイツっぽいシアン */
-            --accent-hover: #00aadd;
+            --accent: #00d2ff;
             --border: #333;
             --active-bg: #00d2ff;
             --active-text: #000;
@@ -28,7 +27,7 @@
         h1 {
             border-left: 5px solid var(--accent);
             padding-left: 15px;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         /* 検索フィルタエリア */
@@ -52,14 +51,47 @@
             padding-bottom: 0;
         }
 
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
         .filter-label {
             font-weight: bold;
-            margin-bottom: 10px;
-            display: block;
             color: var(--accent);
             font-size: 0.95rem;
         }
 
+        /* トグルスイッチのデザイン */
+        .logic-toggle {
+            font-size: 0.8rem;
+            background: #333;
+            padding: 2px;
+            border-radius: 4px;
+            display: inline-flex;
+        }
+        .logic-toggle label {
+            padding: 4px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            color: #888;
+            transition: 0.2s;
+        }
+        .logic-toggle input { display: none; }
+        .logic-toggle input:checked + span {
+            background-color: var(--accent);
+            color: #000;
+            font-weight: bold;
+        }
+        .toggle-span {
+            padding: 4px 10px;
+            border-radius: 3px;
+            display: block;
+        }
+
+        /* ボタンデザイン */
         .btn-filter {
             background-color: transparent;
             border: 1px solid #555;
@@ -77,7 +109,6 @@
             color: var(--text-main);
         }
 
-        /* 選択状態 */
         .btn-filter.active {
             background-color: var(--active-bg);
             color: var(--active-text);
@@ -91,7 +122,16 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
-            padding: 10px 0;
+            padding: 10px 15px;
+            background: #252525;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+
+        .global-logic-area {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         .btn-reset {
@@ -103,9 +143,7 @@
             cursor: pointer;
             font-weight: bold;
         }
-        .btn-reset:hover {
-            background-color: #b71c1c;
-        }
+        .btn-reset:hover { background-color: #b71c1c; }
 
         /* 結果グリッド */
         .results-grid {
@@ -125,7 +163,6 @@
             transition: transform 0.2s, box-shadow 0.2s;
             display: flex;
             flex-direction: column;
-            position: relative;
         }
 
         .char-card:hover {
@@ -143,98 +180,94 @@
             margin-bottom: 10px;
         }
 
-        .char-name {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: var(--text-main);
-        }
+        .char-name { font-size: 1.1rem; font-weight: bold; color: var(--text-main); }
+        .char-sub { font-size: 0.8rem; color: var(--text-sub); background: #333; padding: 2px 6px; border-radius: 2px; }
+        
+        .char-tags { margin-bottom: 12px; font-size: 0.75rem; color: #888; }
+        .tag-badge { display: inline-block; border: 1px solid #555; padding: 1px 5px; margin-right: 3px; margin-bottom: 3px; border-radius: 2px; }
 
-        .char-sub {
-            font-size: 0.8rem;
-            color: var(--text-sub);
-            background: #333;
-            padding: 2px 6px;
-            border-radius: 2px;
-        }
-
-        .char-tags {
-            margin-bottom: 12px;
-            font-size: 0.75rem;
-            color: #888;
-        }
-
-        .tag-badge {
-            display: inline-block;
-            border: 1px solid #555;
-            padding: 1px 5px;
-            margin-right: 3px;
-            margin-bottom: 3px;
-            border-radius: 2px;
-        }
-
-        .char-stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 5px 10px;
-            font-size: 0.85rem;
-        }
-
-        .stat-item {
-            display: flex;
-            justify-content: space-between;
-        }
+        .char-stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; font-size: 0.85rem; }
+        .stat-item { display: flex; justify-content: space-between; }
         .stat-label { color: #777; }
         .stat-val { color: #ccc; }
         .bonus { color: var(--accent); font-size: 0.8em; margin-left: 2px; }
-
-        .loading-msg {
-            text-align: center;
-            font-size: 1.2rem;
-            color: var(--text-sub);
-            margin-top: 50px;
-        }
     </style>
 </head>
 <body>
 
     <h1>アークナイツ キャラクターデータベース</h1>
 
-    <div id="loading" class="loading-msg">データベースを読み込み中...</div>
-
-    <div id="main-content" style="display:none;">
+    <div id="main-content">
         <!-- フィルタ操作エリア -->
         <div class="filter-container">
             
+            <!-- 職業 -->
             <div class="filter-group">
-                <span class="filter-label">職業</span>
+                <div class="filter-header">
+                    <span class="filter-label">職業 (選択すると対応する職分のみ表示)</span>
+                </div>
                 <div id="btns-profession"></div>
             </div>
 
+            <!-- 職分 (職業選択に応じて変化) -->
             <div class="filter-group">
-                <span class="filter-label">職分</span>
+                <div class="filter-header">
+                    <span class="filter-label">職分</span>
+                </div>
                 <div id="btns-branch"></div>
             </div>
 
+            <!-- ブロック数 -->
             <div class="filter-group">
-                <span class="filter-label">ブロック数</span>
+                <span class="filter-label" style="display:block; margin-bottom:10px;">ブロック数</span>
                 <div id="btns-block"></div>
             </div>
 
+            <!-- 入手方法 -->
             <div class="filter-group">
-                <span class="filter-label">入手方法</span>
+                <span class="filter-label" style="display:block; margin-bottom:10px;">入手方法</span>
                 <div id="btns-obtain"></div>
             </div>
 
+            <!-- 募集タグ -->
             <div class="filter-group">
-                <span class="filter-label">募集タグ (AND検索: すべて含むキャラを表示)</span>
+                <div class="filter-header">
+                    <span class="filter-label">募集タグ</span>
+                    <!-- タグ専用の論理切り替え -->
+                    <div class="logic-toggle">
+                        <label>
+                            <input type="radio" name="tag-logic" value="AND" checked onchange="updateResults()">
+                            <span class="toggle-span">すべて含む (AND)</span>
+                        </label>
+                        <label>
+                            <input type="radio" name="tag-logic" value="OR" onchange="updateResults()">
+                            <span class="toggle-span">どれか含む (OR)</span>
+                        </label>
+                    </div>
+                </div>
                 <div id="btns-tags"></div>
             </div>
 
         </div>
 
-        <!-- 件数表示とリセット -->
+        <!-- コントロールバー -->
         <div class="status-bar">
-            <span id="result-count" style="font-weight:bold; font-size:1.1rem;">Loading...</span>
+            <div class="global-logic-area">
+                <span style="color:#aaa; font-size:0.9rem;">全体の検索条件:</span>
+                <div class="logic-toggle">
+                    <label>
+                        <input type="radio" name="global-logic" value="AND" checked onchange="updateResults()">
+                        <span class="toggle-span">すべて満たす (AND)</span>
+                    </label>
+                    <label>
+                        <input type="radio" name="global-logic" value="OR" onchange="updateResults()">
+                        <span class="toggle-span">いずれか満たす (OR)</span>
+                    </label>
+                </div>
+            </div>
+            
+            <span id="result-count" style="font-weight:bold;">検索結果: -- 件</span>
+            
             <button class="btn-reset" onclick="resetAll()">条件をリセット</button>
         </div>
 
@@ -243,10 +276,28 @@
     </div>
 
     <script>
-        // グローバル変数
-        let allCharacters = [];
-        let structuredData = {};
+        // ==========================================================
+        //  ここにJSONデータを貼り付けてください
+        // ==========================================================
+
+        // arknights_characters.json の中身
+        const allCharacters = 
         
+        [
+            /* ここに arknights_characters.json の中身をコピペ */
+        ];
+
+        // arknights_structured_values.json の中身
+        const structuredData = 
+        
+        {
+            /* ここに arknights_structured_values.json の中身をコピペ */
+        };
+
+        // ==========================================================
+        //  設定エリアここまで
+        // ==========================================================
+
         // フィルタ状態管理
         let filters = {
             profession: [],
@@ -257,92 +308,88 @@
         };
 
         // 初期化処理
-        window.addEventListener('DOMContentLoaded', async () => {
-            try {
-                // 2つのJSONを並列で取得
-                const [charsRes, structRes] = await Promise.all([
-                    fetch('arknights_characters.json'),
-                    fetch('arknights_structured_values.json')
-                ]);
-
-                if (!charsRes.ok || !structRes.ok) {
-                    throw new Error("ファイルの読み込みに失敗しました");
-                }
-
-                allCharacters = await charsRes.json();
-                structuredData = await structRes.json();
-
-                // UI生成
-                initButtons();
-                
-                // 初回描画
-                updateResults();
-
-                // ローディング非表示、メイン表示
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('main-content').style.display = 'block';
-
-            } catch (error) {
-                document.getElementById('loading').textContent = "エラー: JSONファイルの読み込みに失敗しました。ローカルサーバー経由で開いているか確認してください。";
-                console.error(error);
+        window.addEventListener('DOMContentLoaded', () => {
+            if (allCharacters.length === 0 || Object.keys(structuredData).length === 0) {
+                document.getElementById('results').innerHTML = '<p style="color:red; text-align:center;">エラー: JSONデータが貼り付けられていません。</p>';
+                return;
             }
+
+            initStaticButtons();
+            updateBranchButtons(); // 初回ロード時は全職分を表示
+            updateResults();
         });
 
-        // ボタン生成関数
-        function initButtons() {
+        // 静的なボタン（職業、ブロック、入手、タグ）の生成
+        function initStaticButtons() {
             // 1. 職業
             const profContainer = document.getElementById('btns-profession');
-            // 辞書のキーを取得してソート
             const professions = Object.keys(structuredData.profession_branches || {}).sort();
-            professions.forEach(prof => {
-                createButton(profContainer, 'profession', prof);
-            });
-
-            // 2. 職分 (全職分をフラットなリストにする)
-            const branchContainer = document.getElementById('btns-branch');
-            let allBranches = [];
-            if (structuredData.profession_branches) {
-                Object.values(structuredData.profession_branches).forEach(list => {
-                    allBranches = allBranches.concat(list);
-                });
-            }
-            // 重複排除とソート
-            allBranches = [...new Set(allBranches)].sort();
-            allBranches.forEach(br => {
-                createButton(branchContainer, 'branch', br);
-            });
+            professions.forEach(prof => createButton(profContainer, 'profession', prof));
 
             // 3. ブロック数
             const blockContainer = document.getElementById('btns-block');
-            (structuredData.block_counts || []).forEach(val => {
-                createButton(blockContainer, 'block_count', val);
-            });
+            (structuredData.block_counts || []).forEach(val => createButton(blockContainer, 'block_count', val));
 
             // 4. 入手方法
             const obtainContainer = document.getElementById('btns-obtain');
-            (structuredData.obtain_methods || []).forEach(val => {
-                createButton(obtainContainer, 'obtain_method', val);
-            });
+            (structuredData.obtain_methods || []).forEach(val => createButton(obtainContainer, 'obtain_method', val));
 
             // 5. 募集タグ
             const tagsContainer = document.getElementById('btns-tags');
-            (structuredData.tags || []).forEach(val => {
-                createButton(tagsContainer, 'tags', val);
-            });
+            (structuredData.tags || []).forEach(val => createButton(tagsContainer, 'tags', val));
         }
 
-        // 個別のボタンを作成するヘルパー関数
+        // 職分ボタンの更新（職業選択に応じて中身を変える）
+        function updateBranchButtons() {
+            const branchContainer = document.getElementById('btns-branch');
+            branchContainer.innerHTML = ''; // 一旦クリア
+
+            let targetBranches = new Set();
+            const selectedProfs = filters.profession;
+
+            if (selectedProfs.length === 0) {
+                // 職業未選択時は「すべての職分」を表示
+                if (structuredData.profession_branches) {
+                    Object.values(structuredData.profession_branches).forEach(list => {
+                        list.forEach(b => targetBranches.add(b));
+                    });
+                }
+            } else {
+                // 選択された職業に紐づく職分のみ抽出
+                selectedProfs.forEach(prof => {
+                    const list = structuredData.profession_branches[prof];
+                    if (list) list.forEach(b => targetBranches.add(b));
+                });
+            }
+
+            // 現在選択中の職分が表示対象から外れる場合、選択解除する
+            const validBranchList = [...targetBranches].sort();
+            filters.branch = filters.branch.filter(b => validBranchList.includes(b));
+
+            // ボタン生成
+            validBranchList.forEach(br => {
+                const btn = document.createElement('button');
+                btn.className = 'btn-filter';
+                if (filters.branch.includes(br)) btn.classList.add('active'); // 選択状態を維持
+                btn.textContent = br;
+                btn.dataset.type = 'branch';
+                btn.dataset.value = br;
+                btn.addEventListener('click', function() { toggleFilter('branch', br, this); });
+                branchContainer.appendChild(btn);
+            });
+            
+            // 選択解除によって結果が変わる可能性があるため検索実行
+            updateResults(); 
+        }
+
+        // 個別のボタンを作成するヘルパー
         function createButton(container, type, value) {
             const btn = document.createElement('button');
             btn.className = 'btn-filter';
             btn.textContent = value;
             btn.dataset.type = type;
             btn.dataset.value = value;
-            
-            btn.addEventListener('click', function() {
-                toggleFilter(type, value, this);
-            });
-            
+            btn.addEventListener('click', function() { toggleFilter(type, value, this); });
             container.appendChild(btn);
         }
 
@@ -351,87 +398,116 @@
             const index = filters[type].indexOf(value);
             
             if (index === -1) {
-                // 追加
                 filters[type].push(value);
                 btnElement.classList.add('active');
             } else {
-                // 削除
                 filters[type].splice(index, 1);
                 btnElement.classList.remove('active');
             }
 
-            // 即座に検索実行
+            // 職業が変更された場合のみ、職分ボタンを再生成
+            if (type === 'profession') {
+                updateBranchButtons();
+            }
+
+            // 検索実行
             updateResults();
         }
 
-        // 検索ロジックと描画
+        // メインの検索ロジック
         function updateResults() {
+            // モード取得
+            const globalMode = document.querySelector('input[name="global-logic"]:checked').value; // 'AND' or 'OR'
+            const tagMode = document.querySelector('input[name="tag-logic"]:checked').value;       // 'AND' or 'OR'
+
             const resultsContainer = document.getElementById('results');
             const countLabel = document.getElementById('result-count');
             
-            // フィルタリング実行
             const filteredChars = allCharacters.filter(char => {
-                // 1. 職業 (OR)
-                if (filters.profession.length > 0 && !filters.profession.includes(char.profession)) return false;
-                
-                // 2. 職分 (OR)
-                if (filters.branch.length > 0 && !filters.branch.includes(char.branch)) return false;
-                
-                // 3. ブロック数 (OR)
-                if (filters.block_count.length > 0 && !filters.block_count.includes(char.block_count)) return false;
-                
-                // 4. 入手方法 (OR)
-                if (filters.obtain_method.length > 0 && !filters.obtain_method.includes(char.obtain_method)) return false;
-                
-                // 5. 募集タグ (AND) - ここだけは「選択したタグを全て持っているか」を判定
-                if (filters.tags.length > 0) {
-                    if (!char.tags || !Array.isArray(char.tags)) return false;
-                    const hasAllTags = filters.tags.every(t => char.tags.includes(t));
-                    if (!hasAllTags) return false;
+                // 各カテゴリごとのマッチング判定 (選択なしの場合は、そのカテゴリは「条件なし」とみなす)
+                // ただし、Global ORモードの時は「選択なし」はFalse扱いにする必要があるケースもあるが、
+                // 一般的なUIでは「未選択カテゴリは無視」が直感的。
+                // ここでは「各カテゴリ内でヒットしたか」を判定する。
+
+                // 1. 職業 (単一属性なので、複数選択時は常にORマッチ)
+                const hasProfFilter = filters.profession.length > 0;
+                const matchProf = hasProfFilter ? filters.profession.includes(char.profession) : true;
+
+                // 2. 職分
+                const hasBranchFilter = filters.branch.length > 0;
+                const matchBranch = hasBranchFilter ? filters.branch.includes(char.branch) : true;
+
+                // 3. ブロック数
+                const hasBlockFilter = filters.block_count.length > 0;
+                const matchBlock = hasBlockFilter ? filters.block_count.includes(char.block_count) : true;
+
+                // 4. 入手方法
+                const hasObtainFilter = filters.obtain_method.length > 0;
+                const matchObtain = hasObtainFilter ? filters.obtain_method.includes(char.obtain_method) : true;
+
+                // 5. 募集タグ (ここだけ内部ロジック切り替えあり)
+                const hasTagFilter = filters.tags.length > 0;
+                let matchTags = true;
+                if (hasTagFilter) {
+                    if (!char.tags || !Array.isArray(char.tags)) {
+                        matchTags = false;
+                    } else {
+                        if (tagMode === 'AND') {
+                            // すべて含んでいるか
+                            matchTags = filters.tags.every(t => char.tags.includes(t));
+                        } else {
+                            // どれか一つでも含んでいるか
+                            matchTags = filters.tags.some(t => char.tags.includes(t));
+                        }
+                    }
                 }
 
-                return true;
+                // --- 最終判定: Global AND vs Global OR ---
+                
+                if (globalMode === 'AND') {
+                    // すべてのカテゴリ条件をクリアしているか
+                    // (未選択のカテゴリは上で true になっているので影響しない)
+                    return matchProf && matchBranch && matchBlock && matchObtain && matchTags;
+                } else {
+                    // Global OR (いずれかのカテゴリ条件にヒットすればOK)
+                    // 注意: 全カテゴリ未選択の場合は、全表示する (OR検索の直感的挙動)
+                    const isAnyFilterActive = hasProfFilter || hasBranchFilter || hasBlockFilter || hasObtainFilter || hasTagFilter;
+                    
+                    if (!isAnyFilterActive) return true; // 何も選択してなければ全員表示
+
+                    // どれか一つでも条件を満たせばOK
+                    // ただし、未選択のカテゴリ(true)がORの邪魔をしないように、
+                    // 「フィルタが有効で、かつマッチした」ものが一つでもあるかを見る
+                    return (hasProfFilter && matchProf) ||
+                           (hasBranchFilter && matchBranch) ||
+                           (hasBlockFilter && matchBlock) ||
+                           (hasObtainFilter && matchObtain) ||
+                           (hasTagFilter && matchTags);
+                }
             });
 
-            // 件数更新
+            // 描画
             countLabel.textContent = `検索結果: ${filteredChars.length} 件`;
 
-            // HTML生成
-            let html = '';
             if (filteredChars.length === 0) {
                 resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#777;">該当するキャラクターはいません</div>';
                 return;
             }
 
+            let html = '';
             filteredChars.forEach(char => {
-                // タグのHTML化
                 const tagsHtml = (char.tags || []).map(t => `<span class="tag-badge">${t}</span>`).join('');
-                
-                // ステータス表示の整形 (nullチェック含む)
                 const hp = char.hp ? char.hp.base : '-';
                 
-                // 攻撃力 (+値がある場合)
-                let atk = '-';
-                if (char.attack) {
-                    atk = char.attack.base;
-                    if (char.attack.trust_bonus) {
-                        atk += `<span class="bonus">${char.attack.trust_bonus}</span>`;
-                    }
-                }
+                let atk = char.attack ? char.attack.base : '-';
+                if (char.attack && char.attack.trust_bonus) atk += `<span class="bonus">${char.attack.trust_bonus}</span>`;
 
-                // 防御力
-                let def = '-';
-                if (char.defense) {
-                    def = char.defense.base;
-                    if (char.defense.trust_bonus) {
-                        def += `<span class="bonus">${char.defense.trust_bonus}</span>`;
-                    }
-                }
+                let def = char.defense ? char.defense.base : '-';
+                if (char.defense && char.defense.trust_bonus) def += `<span class="bonus">${char.defense.trust_bonus}</span>`;
                 
-                // コスト、ブロック、再配置
                 const cost = char.cost || '-';
                 const block = char.block_count || '-';
-                const redeploy = (char.redeploy_time || '-').split(' ')[0]; // "35s (普通)" -> "35s"
+                const redeploy = (char.redeploy_time || '-').split(' ')[0];
 
                 html += `
                 <a href="${char.url}" target="_blank" class="char-card">
@@ -439,12 +515,10 @@
                         <span class="char-name">${char.name}</span>
                         <span class="char-sub">${char.profession}</span>
                     </div>
-                    
                     <div class="char-tags">
                         <div>職分: ${char.branch}</div>
                         <div style="margin-top:4px;">${tagsHtml}</div>
                     </div>
-
                     <div class="char-stats-grid">
                         <div class="stat-item"><span class="stat-label">HP</span><span class="stat-val">${hp}</span></div>
                         <div class="stat-item"><span class="stat-label">攻撃</span><span class="stat-val">${atk}</span></div>
@@ -454,30 +528,21 @@
                         <div class="stat-item"><span class="stat-label">ブロック</span><span class="stat-val">${block}</span></div>
                         <div class="stat-item"><span class="stat-label">再配置</span><span class="stat-val">${redeploy}</span></div>
                     </div>
-                </a>
-                `;
+                </a>`;
             });
-
             resultsContainer.innerHTML = html;
         }
 
         // リセット機能
         function resetAll() {
-            // フィルタ状態クリア
-            filters = {
-                profession: [],
-                branch: [],
-                block_count: [],
-                obtain_method: [],
-                tags: []
-            };
-
-            // ボタンの見た目クリア
-            document.querySelectorAll('.btn-filter.active').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // 再描画
+            filters = { profession: [], branch: [], block_count: [], obtain_method: [], tags: [] };
+            
+            // ボタンのアクティブ状態解除
+            document.querySelectorAll('.btn-filter.active').forEach(btn => btn.classList.remove('active'));
+            
+            // 職分ボタンを初期状態(全表示)に戻す
+            updateBranchButtons();
+            
             updateResults();
         }
     </script>
