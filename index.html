@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>アークナイツ キャラクター検索 (高機能版)</title>
+    <title>アークナイツ キャラクターデータベース</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -11,9 +11,12 @@
             --text-main: #e0e0e0;
             --text-sub: #a0a0a0;
             --accent: #00d2ff;
+            --accent-hover: #00aadd;
             --border: #333;
             --active-bg: #00d2ff;
             --active-text: #000;
+            --toggle-bg-and: #ff9800; /* AND検索時の色 */
+            --toggle-bg-or: #4caf50;  /* OR検索時の色 */
         }
 
         body {
@@ -51,47 +54,51 @@
             padding-bottom: 0;
         }
 
-        .filter-header {
+        /* ヘッダー周り（ラベルとスイッチ） */
+        .group-header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            gap: 15px;
         }
 
         .filter-label {
             font-weight: bold;
             color: var(--accent);
             font-size: 0.95rem;
+            min-width: 80px;
         }
 
-        /* トグルスイッチのデザイン */
+        /* AND/OR トグルスイッチ */
         .logic-toggle {
-            font-size: 0.8rem;
-            background: #333;
-            padding: 2px;
-            border-radius: 4px;
-            display: inline-flex;
-        }
-        .logic-toggle label {
-            padding: 4px 10px;
+            background-color: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
             cursor: pointer;
-            border-radius: 3px;
-            color: #888;
-            transition: 0.2s;
+            transition: background-color 0.2s;
+            user-select: none;
         }
-        .logic-toggle input { display: none; }
-        .logic-toggle input:checked + span {
-            background-color: var(--accent);
-            color: #000;
-            font-weight: bold;
+        
+        /* ORモード */
+        .logic-toggle[data-mode="OR"] {
+            background-color: var(--card-bg);
+            border-color: var(--toggle-bg-or);
+            color: var(--toggle-bg-or);
         }
-        .toggle-span {
-            padding: 4px 10px;
-            border-radius: 3px;
-            display: block;
+        .logic-toggle[data-mode="OR"]:before { content: "● OR (いずれか)"; }
+        
+        /* ANDモード */
+        .logic-toggle[data-mode="AND"] {
+            background-color: var(--card-bg);
+            border-color: var(--toggle-bg-and);
+            color: var(--toggle-bg-and);
         }
+        .logic-toggle[data-mode="AND"]:before { content: "● AND (すべて)"; }
 
-        /* ボタンデザイン */
+        /* フィルタボタン */
         .btn-filter {
             background-color: transparent;
             border: 1px solid #555;
@@ -116,22 +123,15 @@
             font-weight: bold;
         }
 
-        /* ステータスバー */
+        /* 結果表示エリア */
         .status-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 20px;
-            padding: 10px 15px;
-            background: #252525;
-            border-radius: 4px;
-            border: 1px solid #444;
-        }
-
-        .global-logic-area {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            padding: 10px 0;
+            border-top: 1px solid #333;
+            border-bottom: 1px solid #333;
         }
 
         .btn-reset {
@@ -143,9 +143,7 @@
             cursor: pointer;
             font-weight: bold;
         }
-        .btn-reset:hover { background-color: #b71c1c; }
 
-        /* 結果グリッド */
         .results-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -191,114 +189,85 @@
         .stat-label { color: #777; }
         .stat-val { color: #ccc; }
         .bonus { color: var(--accent); font-size: 0.8em; margin-left: 2px; }
+
+        .loading-msg { text-align: center; font-size: 1.2rem; color: var(--text-sub); margin-top: 50px; }
+        
+        .empty-branch-msg { color: #666; font-style: italic; font-size: 0.9rem; padding: 5px 0; }
     </style>
 </head>
 <body>
 
     <h1>アークナイツ キャラクターデータベース</h1>
 
-    <div id="main-content">
-        <!-- フィルタ操作エリア -->
+    <div id="loading" class="loading-msg">データベースを読み込み中...</div>
+
+    <div id="main-content" style="display:none;">
         <div class="filter-container">
             
             <!-- 職業 -->
             <div class="filter-group">
-                <div class="filter-header">
-                    <span class="filter-label">職業 (選択すると対応する職分のみ表示)</span>
+                <div class="group-header">
+                    <span class="filter-label">職業</span>
+                    <!-- 職業は単一属性なのでAND検索(複数選択)すると結果0になるが、一応切り替え可能にする -->
+                    <button class="logic-toggle" id="toggle-profession" data-mode="OR" onclick="toggleLogic('profession')"></button>
                 </div>
                 <div id="btns-profession"></div>
             </div>
 
-            <!-- 職分 (職業選択に応じて変化) -->
+            <!-- 職分 (職業選択後に表示) -->
             <div class="filter-group">
-                <div class="filter-header">
+                <div class="group-header">
                     <span class="filter-label">職分</span>
+                    <button class="logic-toggle" id="toggle-branch" data-mode="OR" onclick="toggleLogic('branch')"></button>
                 </div>
-                <div id="btns-branch"></div>
+                <div id="btns-branch">
+                    <div class="empty-branch-msg">職業を選択すると、対応する職分が表示されます</div>
+                </div>
             </div>
 
             <!-- ブロック数 -->
             <div class="filter-group">
-                <span class="filter-label" style="display:block; margin-bottom:10px;">ブロック数</span>
+                <div class="group-header">
+                    <span class="filter-label">ブロック数</span>
+                    <button class="logic-toggle" id="toggle-block_count" data-mode="OR" onclick="toggleLogic('block_count')"></button>
+                </div>
                 <div id="btns-block"></div>
             </div>
 
             <!-- 入手方法 -->
             <div class="filter-group">
-                <span class="filter-label" style="display:block; margin-bottom:10px;">入手方法</span>
+                <div class="group-header">
+                    <span class="filter-label">入手方法</span>
+                    <button class="logic-toggle" id="toggle-obtain_method" data-mode="OR" onclick="toggleLogic('obtain_method')"></button>
+                </div>
                 <div id="btns-obtain"></div>
             </div>
 
             <!-- 募集タグ -->
             <div class="filter-group">
-                <div class="filter-header">
+                <div class="group-header">
                     <span class="filter-label">募集タグ</span>
-                    <!-- タグ専用の論理切り替え -->
-                    <div class="logic-toggle">
-                        <label>
-                            <input type="radio" name="tag-logic" value="AND" checked onchange="updateResults()">
-                            <span class="toggle-span">すべて含む (AND)</span>
-                        </label>
-                        <label>
-                            <input type="radio" name="tag-logic" value="OR" onchange="updateResults()">
-                            <span class="toggle-span">どれか含む (OR)</span>
-                        </label>
-                    </div>
+                    <!-- デフォルトをAND検索に設定 -->
+                    <button class="logic-toggle" id="toggle-tags" data-mode="AND" onclick="toggleLogic('tags')"></button>
                 </div>
                 <div id="btns-tags"></div>
             </div>
 
         </div>
 
-        <!-- コントロールバー -->
         <div class="status-bar">
-            <div class="global-logic-area">
-                <span style="color:#aaa; font-size:0.9rem;">全体の検索条件:</span>
-                <div class="logic-toggle">
-                    <label>
-                        <input type="radio" name="global-logic" value="AND" checked onchange="updateResults()">
-                        <span class="toggle-span">すべて満たす (AND)</span>
-                    </label>
-                    <label>
-                        <input type="radio" name="global-logic" value="OR" onchange="updateResults()">
-                        <span class="toggle-span">いずれか満たす (OR)</span>
-                    </label>
-                </div>
-            </div>
-            
-            <span id="result-count" style="font-weight:bold;">検索結果: -- 件</span>
-            
+            <span id="result-count" style="font-weight:bold; font-size:1.1rem;">Loading...</span>
             <button class="btn-reset" onclick="resetAll()">条件をリセット</button>
         </div>
 
-        <!-- 結果一覧 -->
         <div id="results" class="results-grid"></div>
     </div>
 
     <script>
-        // ==========================================================
-        //  ここにJSONデータを貼り付けてください
-        // ==========================================================
-
-        // arknights_characters.json の中身
-        const allCharacters = 
+        let allCharacters = [];
+        let structuredData = {};
         
-        [
-            /* ここに arknights_characters.json の中身をコピペ */
-        ];
-
-        // arknights_structured_values.json の中身
-        const structuredData = 
-        
-        {
-            /* ここに arknights_structured_values.json の中身をコピペ */
-        };
-
-        // ==========================================================
-        //  設定エリアここまで
-        // ==========================================================
-
-        // フィルタ状態管理
+        // フィルタ選択状態
         let filters = {
             profession: [],
             branch: [],
@@ -307,96 +276,81 @@
             tags: []
         };
 
-        // 初期化処理
-        window.addEventListener('DOMContentLoaded', () => {
-            if (allCharacters.length === 0 || Object.keys(structuredData).length === 0) {
-                document.getElementById('results').innerHTML = '<p style="color:red; text-align:center;">エラー: JSONデータが貼り付けられていません。</p>';
-                return;
-            }
+        // 検索ロジック状態 (AND / OR)
+        let filterLogics = {
+            profession: 'OR',
+            branch: 'OR',
+            block_count: 'OR',
+            obtain_method: 'OR',
+            tags: 'AND' // タグのみデフォルトAND
+        };
 
-            initStaticButtons();
-            updateBranchButtons(); // 初回ロード時は全職分を表示
-            updateResults();
+        window.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const [charsRes, structRes] = await Promise.all([
+                    fetch('arknights_characters.json'),
+                    fetch('arknights_structured_values.json')
+                ]);
+
+                if (!charsRes.ok || !structRes.ok) throw new Error("Load failed");
+
+                allCharacters = await charsRes.json();
+                structuredData = await structRes.json();
+
+                initStaticButtons();
+                updateResults(); // 初回描画
+
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+
+            } catch (error) {
+                document.getElementById('loading').textContent = "JSON読み込みエラー。サーバー経由で開いてください。";
+                console.error(error);
+            }
         });
 
-        // 静的なボタン（職業、ブロック、入手、タグ）の生成
+        // 職業・ブロック・入手・タグのボタン生成（職分以外）
         function initStaticButtons() {
-            // 1. 職業
+            // 職業
             const profContainer = document.getElementById('btns-profession');
             const professions = Object.keys(structuredData.profession_branches || {}).sort();
-            professions.forEach(prof => createButton(profContainer, 'profession', prof));
+            professions.forEach(p => createButton(profContainer, 'profession', p));
 
-            // 3. ブロック数
+            // ブロック
             const blockContainer = document.getElementById('btns-block');
-            (structuredData.block_counts || []).forEach(val => createButton(blockContainer, 'block_count', val));
+            (structuredData.block_counts || []).forEach(v => createButton(blockContainer, 'block_count', v));
 
-            // 4. 入手方法
+            // 入手方法
             const obtainContainer = document.getElementById('btns-obtain');
-            (structuredData.obtain_methods || []).forEach(val => createButton(obtainContainer, 'obtain_method', val));
+            (structuredData.obtain_methods || []).forEach(v => createButton(obtainContainer, 'obtain_method', v));
 
-            // 5. 募集タグ
+            // タグ
             const tagsContainer = document.getElementById('btns-tags');
-            (structuredData.tags || []).forEach(val => createButton(tagsContainer, 'tags', val));
+            (structuredData.tags || []).forEach(v => createButton(tagsContainer, 'tags', v));
         }
 
-        // 職分ボタンの更新（職業選択に応じて中身を変える）
-        function updateBranchButtons() {
-            const branchContainer = document.getElementById('btns-branch');
-            branchContainer.innerHTML = ''; // 一旦クリア
-
-            let targetBranches = new Set();
-            const selectedProfs = filters.profession;
-
-            if (selectedProfs.length === 0) {
-                // 職業未選択時は「すべての職分」を表示
-                if (structuredData.profession_branches) {
-                    Object.values(structuredData.profession_branches).forEach(list => {
-                        list.forEach(b => targetBranches.add(b));
-                    });
-                }
-            } else {
-                // 選択された職業に紐づく職分のみ抽出
-                selectedProfs.forEach(prof => {
-                    const list = structuredData.profession_branches[prof];
-                    if (list) list.forEach(b => targetBranches.add(b));
-                });
-            }
-
-            // 現在選択中の職分が表示対象から外れる場合、選択解除する
-            const validBranchList = [...targetBranches].sort();
-            filters.branch = filters.branch.filter(b => validBranchList.includes(b));
-
-            // ボタン生成
-            validBranchList.forEach(br => {
-                const btn = document.createElement('button');
-                btn.className = 'btn-filter';
-                if (filters.branch.includes(br)) btn.classList.add('active'); // 選択状態を維持
-                btn.textContent = br;
-                btn.dataset.type = 'branch';
-                btn.dataset.value = br;
-                btn.addEventListener('click', function() { toggleFilter('branch', br, this); });
-                branchContainer.appendChild(btn);
-            });
-            
-            // 選択解除によって結果が変わる可能性があるため検索実行
-            updateResults(); 
-        }
-
-        // 個別のボタンを作成するヘルパー
+        // 汎用ボタン生成
         function createButton(container, type, value) {
             const btn = document.createElement('button');
             btn.className = 'btn-filter';
             btn.textContent = value;
             btn.dataset.type = type;
             btn.dataset.value = value;
-            btn.addEventListener('click', function() { toggleFilter(type, value, this); });
+            
+            // 既に選択済みならアクティブ化（リセット後などの再生成時用）
+            if (filters[type].includes(value)) {
+                btn.classList.add('active');
+            }
+            
+            btn.addEventListener('click', function() {
+                toggleFilter(type, value, this);
+            });
             container.appendChild(btn);
         }
 
-        // フィルタのON/OFF切り替え
+        // フィルタON/OFF
         function toggleFilter(type, value, btnElement) {
             const index = filters[type].indexOf(value);
-            
             if (index === -1) {
                 filters[type].push(value);
                 btnElement.classList.add('active');
@@ -405,108 +359,128 @@
                 btnElement.classList.remove('active');
             }
 
-            // 職業が変更された場合のみ、職分ボタンを再生成
+            // 職業が変更された場合、職分ボタンを更新する
             if (type === 'profession') {
                 updateBranchButtons();
             }
 
-            // 検索実行
             updateResults();
         }
 
-        // メインの検索ロジック
-        function updateResults() {
-            // モード取得
-            const globalMode = document.querySelector('input[name="global-logic"]:checked').value; // 'AND' or 'OR'
-            const tagMode = document.querySelector('input[name="tag-logic"]:checked').value;       // 'AND' or 'OR'
+        // 職分ボタンの動的更新
+        function updateBranchButtons() {
+            const container = document.getElementById('btns-branch');
+            const selectedProfs = filters.profession;
 
+            // コンテナをクリア
+            container.innerHTML = '';
+
+            // 職業が選択されていない場合
+            if (selectedProfs.length === 0) {
+                filters.branch = []; // 職分選択もクリア
+                container.innerHTML = '<div class="empty-branch-msg">職業を選択すると、対応する職分が表示されます</div>';
+                return;
+            }
+
+            // 選択された職業に対応する職分リストを作成
+            let availableBranches = [];
+            selectedProfs.forEach(prof => {
+                const branches = structuredData.profession_branches[prof] || [];
+                availableBranches = availableBranches.concat(branches);
+            });
+            
+            // 重複削除とソート
+            availableBranches = [...new Set(availableBranches)].sort();
+
+            // 現在選択中の職分が、新しいリストに含まれていなければ選択解除する
+            filters.branch = filters.branch.filter(b => availableBranches.includes(b));
+
+            // ボタン生成
+            availableBranches.forEach(br => {
+                createButton(container, 'branch', br);
+            });
+        }
+
+        // AND/OR 切り替え
+        function toggleLogic(type) {
+            const current = filterLogics[type];
+            const next = current === 'OR' ? 'AND' : 'OR';
+            filterLogics[type] = next;
+
+            // ボタン表示更新
+            const btn = document.getElementById(`toggle-${type}`);
+            btn.dataset.mode = next;
+
+            updateResults();
+        }
+
+        // 検索実行
+        function updateResults() {
             const resultsContainer = document.getElementById('results');
             const countLabel = document.getElementById('result-count');
             
             const filteredChars = allCharacters.filter(char => {
-                // 各カテゴリごとのマッチング判定 (選択なしの場合は、そのカテゴリは「条件なし」とみなす)
-                // ただし、Global ORモードの時は「選択なし」はFalse扱いにする必要があるケースもあるが、
-                // 一般的なUIでは「未選択カテゴリは無視」が直感的。
-                // ここでは「各カテゴリ内でヒットしたか」を判定する。
-
-                // 1. 職業 (単一属性なので、複数選択時は常にORマッチ)
-                const hasProfFilter = filters.profession.length > 0;
-                const matchProf = hasProfFilter ? filters.profession.includes(char.profession) : true;
-
-                // 2. 職分
-                const hasBranchFilter = filters.branch.length > 0;
-                const matchBranch = hasBranchFilter ? filters.branch.includes(char.branch) : true;
-
-                // 3. ブロック数
-                const hasBlockFilter = filters.block_count.length > 0;
-                const matchBlock = hasBlockFilter ? filters.block_count.includes(char.block_count) : true;
-
-                // 4. 入手方法
-                const hasObtainFilter = filters.obtain_method.length > 0;
-                const matchObtain = hasObtainFilter ? filters.obtain_method.includes(char.obtain_method) : true;
-
-                // 5. 募集タグ (ここだけ内部ロジック切り替えあり)
-                const hasTagFilter = filters.tags.length > 0;
-                let matchTags = true;
-                if (hasTagFilter) {
-                    if (!char.tags || !Array.isArray(char.tags)) {
-                        matchTags = false;
-                    } else {
-                        if (tagMode === 'AND') {
-                            // すべて含んでいるか
-                            matchTags = filters.tags.every(t => char.tags.includes(t));
-                        } else {
-                            // どれか一つでも含んでいるか
-                            matchTags = filters.tags.some(t => char.tags.includes(t));
-                        }
-                    }
-                }
-
-                // --- 最終判定: Global AND vs Global OR ---
-                
-                if (globalMode === 'AND') {
-                    // すべてのカテゴリ条件をクリアしているか
-                    // (未選択のカテゴリは上で true になっているので影響しない)
-                    return matchProf && matchBranch && matchBlock && matchObtain && matchTags;
-                } else {
-                    // Global OR (いずれかのカテゴリ条件にヒットすればOK)
-                    // 注意: 全カテゴリ未選択の場合は、全表示する (OR検索の直感的挙動)
-                    const isAnyFilterActive = hasProfFilter || hasBranchFilter || hasBlockFilter || hasObtainFilter || hasTagFilter;
-                    
-                    if (!isAnyFilterActive) return true; // 何も選択してなければ全員表示
-
-                    // どれか一つでも条件を満たせばOK
-                    // ただし、未選択のカテゴリ(true)がORの邪魔をしないように、
-                    // 「フィルタが有効で、かつマッチした」ものが一つでもあるかを見る
-                    return (hasProfFilter && matchProf) ||
-                           (hasBranchFilter && matchBranch) ||
-                           (hasBlockFilter && matchBlock) ||
-                           (hasObtainFilter && matchObtain) ||
-                           (hasTagFilter && matchTags);
-                }
+                return checkCategory(char, 'profession', char.profession) &&
+                       checkCategory(char, 'branch', char.branch) &&
+                       checkCategory(char, 'block_count', char.block_count) &&
+                       checkCategory(char, 'obtain_method', char.obtain_method) &&
+                       checkCategory(char, 'tags', char.tags); // tagsは配列
             });
 
-            // 描画
             countLabel.textContent = `検索結果: ${filteredChars.length} 件`;
+            renderCards(filteredChars, resultsContainer);
+        }
 
-            if (filteredChars.length === 0) {
-                resultsContainer.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#777;">該当するキャラクターはいません</div>';
+        // 各カテゴリの判定ロジック
+        function checkCategory(char, type, charValue) {
+            const selectedValues = filters[type];
+            const logic = filterLogics[type]; // 'AND' or 'OR'
+
+            // 何も選択されていなければフィルタしない（通過）
+            if (selectedValues.length === 0) return true;
+
+            // キャラ側の値が配列の場合（Tagsなど）
+            if (Array.isArray(charValue)) {
+                if (logic === 'AND') {
+                    // 選択した全てを持っているか
+                    return selectedValues.every(val => charValue.includes(val));
+                } else {
+                    // 選択したもののうちどれか一つでも持っているか
+                    return selectedValues.some(val => charValue.includes(val));
+                }
+            } 
+            // キャラ側の値が単一の場合（職業、職分など）
+            else {
+                if (logic === 'AND') {
+                    // 単一値に対してAND検索（複数選択）すると、値は一つしか持てないので
+                    // 選択肢が2つ以上の場合は必ずfalseになる
+                    if (selectedValues.length > 1) return false;
+                    return selectedValues.includes(charValue);
+                } else {
+                    // OR検索（どれかに一致）
+                    return selectedValues.includes(charValue);
+                }
+            }
+        }
+
+        // カード描画
+        function renderCards(chars, container) {
+            if (chars.length === 0) {
+                container.innerHTML = '<div style="grid-column:1/-1; text-align:center; color:#777;">該当するキャラクターはいません</div>';
                 return;
             }
 
             let html = '';
-            filteredChars.forEach(char => {
+            chars.forEach(char => {
                 const tagsHtml = (char.tags || []).map(t => `<span class="tag-badge">${t}</span>`).join('');
-                const hp = char.hp ? char.hp.base : '-';
                 
+                // 数値データの整形
                 let atk = char.attack ? char.attack.base : '-';
                 if (char.attack && char.attack.trust_bonus) atk += `<span class="bonus">${char.attack.trust_bonus}</span>`;
-
+                
                 let def = char.defense ? char.defense.base : '-';
                 if (char.defense && char.defense.trust_bonus) def += `<span class="bonus">${char.defense.trust_bonus}</span>`;
                 
-                const cost = char.cost || '-';
-                const block = char.block_count || '-';
                 const redeploy = (char.redeploy_time || '-').split(' ')[0];
 
                 html += `
@@ -520,29 +494,35 @@
                         <div style="margin-top:4px;">${tagsHtml}</div>
                     </div>
                     <div class="char-stats-grid">
-                        <div class="stat-item"><span class="stat-label">HP</span><span class="stat-val">${hp}</span></div>
+                        <div class="stat-item"><span class="stat-label">HP</span><span class="stat-val">${char.hp ? char.hp.base : '-'}</span></div>
                         <div class="stat-item"><span class="stat-label">攻撃</span><span class="stat-val">${atk}</span></div>
                         <div class="stat-item"><span class="stat-label">防御</span><span class="stat-val">${def}</span></div>
-                        <div class="stat-item"><span class="stat-label">術耐</span><span class="stat-val">${char.resistance || '0'}</span></div>
-                        <div class="stat-item"><span class="stat-label">コスト</span><span class="stat-val">${cost}</span></div>
-                        <div class="stat-item"><span class="stat-label">ブロック</span><span class="stat-val">${block}</span></div>
+                        <div class="stat-item"><span class="stat-label">コスト</span><span class="stat-val">${char.cost}</span></div>
+                        <div class="stat-item"><span class="stat-label">ブロック</span><span class="stat-val">${char.block_count}</span></div>
                         <div class="stat-item"><span class="stat-label">再配置</span><span class="stat-val">${redeploy}</span></div>
                     </div>
-                </a>`;
+                </a>
+                `;
             });
-            resultsContainer.innerHTML = html;
+            container.innerHTML = html;
         }
 
-        // リセット機能
+        // リセット
         function resetAll() {
             filters = { profession: [], branch: [], block_count: [], obtain_method: [], tags: [] };
             
-            // ボタンのアクティブ状態解除
+            // ロジックはリセットしない方が親切かもしれないが、一応デフォルトに戻すなら以下
+            filterLogics = { profession: 'OR', branch: 'OR', block_count: 'OR', obtain_method: 'OR', tags: 'AND' };
+            
+            // UI更新
+            document.querySelectorAll('.logic-toggle').forEach(btn => {
+                const type = btn.id.replace('toggle-', '');
+                btn.dataset.mode = filterLogics[type];
+            });
+
             document.querySelectorAll('.btn-filter.active').forEach(btn => btn.classList.remove('active'));
             
-            // 職分ボタンを初期状態(全表示)に戻す
-            updateBranchButtons();
-            
+            updateBranchButtons(); // 職分エリアをリセット（空にする）
             updateResults();
         }
     </script>
