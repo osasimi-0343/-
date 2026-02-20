@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>アークナイツ キャラクターデータベース</title>
+    <title>アークナイツ キャラ検索</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -88,7 +88,7 @@
             border-color: var(--toggle-bg-or);
             color: var(--toggle-bg-or);
         }
-        .logic-toggle[data-mode="OR"]:before { content: "● OR (いずれか)"; }
+        .logic-toggle[data-mode="OR"]:before { content: "● OR (選択したいずれかの要素を持つ)"; }
         
         /* ANDモード */
         .logic-toggle[data-mode="AND"] {
@@ -96,7 +96,7 @@
             border-color: var(--toggle-bg-and);
             color: var(--toggle-bg-and);
         }
-        .logic-toggle[data-mode="AND"]:before { content: "● AND (すべて)"; }
+        .logic-toggle[data-mode="AND"]:before { content: "● AND (選択したすべての要素を持つ)"; }
 
         /* フィルタボタン */
         .btn-filter {
@@ -246,7 +246,7 @@
             <!-- 募集タグ -->
             <div class="filter-group">
                 <div class="group-header">
-                    <span class="filter-label">募集タグ</span>
+                    <span class="filter-label">公開求人募集タグ</span>
                     <!-- デフォルトをAND検索に設定 -->
                     <button class="logic-toggle" id="toggle-tags" data-mode="AND" onclick="toggleLogic('tags')"></button>
                 </div>
